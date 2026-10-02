@@ -76,7 +76,7 @@ interface DemoStoreValue {
   patchContract(id: string, patch: Partial<Contract>): void;
   patchCustomer(id: string, patch: Partial<Customer>): void;
   patchVehicle(id: string, patch: Partial<Vehicle>): void;
-  addContract(contract: Contract): void;
+  addContract(contract: Contract): Promise<Contract>;
   addCustomer(customer: Customer): void;
 
   nextContractNumber(): string;
@@ -343,17 +343,18 @@ export function DemoStoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addContract = useCallback(
-    (contract: Contract) => {
-      setContracts((prev) => [contract, ...prev]);
+    async (contract: Contract): Promise<Contract> => {
       if (IS_SUPABASE) {
-        void contractRepository
-          .create(contract)
-          .then((created) => mergeContract(created))
-          .catch((e) => {
-            // eslint-disable-next-line no-console
-            console.error("[store] create contract falló:", e);
-          });
+        // Create on the server first and adopt the real row (real id + real
+        // public_token). No optimistic phantom with a fake id/token — that is
+        // what caused "Contrato no encontrado" when opening the customer link.
+        const created = await contractRepository.create(contract);
+        mergeContract(created);
+        return created;
       }
+      // Mock mode: local insert is the source of truth.
+      setContracts((prev) => [contract, ...prev]);
+      return contract;
     },
     [setContracts, contractRepository, mergeContract],
   );

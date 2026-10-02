@@ -69,6 +69,7 @@ export function ContractEditor({
     patchContract,
     appendEvent,
     nextContractNumber,
+    dataSource,
   } = useDemoStore();
   const toast = useToast();
   const actions = useContractActions();
@@ -199,7 +200,7 @@ export function ContractEditor({
   }
 
   const save = (andSend: boolean) =>
-    handleSubmit((data) => {
+    handleSubmit(async (data) => {
       if (isEdit && contract) {
         const next = buildContractFromValues(data, contract.status);
         patchContract(contract.id, next);
@@ -207,18 +208,31 @@ export function ContractEditor({
         toast({ title: "Contrato guardado.", status: "success", duration: 1800 });
         onSaved(contract.id);
         onClose();
-      } else {
-        const created = buildContractFromValues(data, "DRAFT");
-        addContract(created);
-        appendEvent(created.id, "CONTRACT_CREATED", "Christian", "Contrato creado.");
-        if (andSend) {
-          void actions.sendByEmail(created);
-        } else {
-          toast({ title: "Borrador guardado.", status: "success", duration: 1800 });
-        }
-        onSaved(created.id);
-        onClose();
+        return;
       }
+
+      // Create: adopt the real contract returned by the store (real id/token).
+      const draft = buildContractFromValues(data, "DRAFT");
+      let created = draft;
+      try {
+        created = await addContract(draft);
+      } catch {
+        toast({ title: "No se pudo crear el contrato.", status: "error", duration: 2600 });
+        return;
+      }
+
+      // In mock mode the server doesn't log the creation event; do it locally.
+      if (dataSource !== "supabase") {
+        appendEvent(created.id, "CONTRACT_CREATED", "Christian", "Contrato creado.");
+      }
+
+      if (andSend) {
+        void actions.sendByEmail(created);
+      } else {
+        toast({ title: "Borrador guardado.", status: "success", duration: 1800 });
+      }
+      onSaved(created.id);
+      onClose();
     })();
 
   return (

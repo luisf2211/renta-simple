@@ -21,7 +21,7 @@ export function ContractsModule({
   mobileShowWorkspace,
   setMobileShowWorkspace,
 }: ModuleProps) {
-  const { contracts, getCustomer, getVehicle, addContract, appendEvent, nextContractNumber } =
+  const { contracts, getCustomer, getVehicle, addContract, appendEvent, nextContractNumber, dataSource } =
     useDemoStore();
   const toast = useToast();
 
@@ -79,7 +79,7 @@ export function ContractsModule({
     }
   };
 
-  const handleDuplicate = () => {
+  const handleDuplicate = async () => {
     if (!selected) return;
     const number = nextContractNumber();
     const now = new Date().toISOString();
@@ -99,10 +99,13 @@ export function ContractsModule({
       events: [],
       documents: [],
     };
-    addContract(copy);
-    appendEvent(copy.id, "CONTRACT_CREATED", "Christian", `Duplicado de ${selected.contractNumber}.`);
-    setSelectedId(copy.id);
-    toast({ title: `Contrato duplicado como ${number}.`, status: "success", duration: 2200 });
+    // addContract returns the real stored contract (real id + token in Supabase).
+    const created = await addContract(copy);
+    if (dataSource !== "supabase") {
+      appendEvent(created.id, "CONTRACT_CREATED", "Christian", `Duplicado de ${selected.contractNumber}.`);
+    }
+    setSelectedId(created.id);
+    toast({ title: `Contrato duplicado como ${created.contractNumber}.`, status: "success", duration: 2200 });
   };
 
   return (
